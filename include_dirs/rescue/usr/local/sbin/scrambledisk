@@ -1,0 +1,29 @@
+#!/bin/sh
+
+command -v pv >/dev/null || {
+  echo you need the 'pv' command
+  exit 1
+}
+
+_disk=$1
+
+[ -z ${_disk} ] && {
+  echo no disk specified
+  exit 1
+}
+
+[ -b ${_disk} ] || {
+  echo not a valid disk
+  exit 1
+}
+
+_disk=${_disk##*/}
+
+_size=$(($(cat /sys/block/${_disk}/size)*512))
+
+openssl enc -aes-256-ctr -nosalt \
+  -pass pass:"$(dd if=/dev/urandom bs=128 count=1 2>/dev/null | base64)" \
+  < /dev/zero |
+  pv --progress -eta --rate --bytes --size "${_size}" |
+  dd of=/dev/${_disk} bs=64k
+

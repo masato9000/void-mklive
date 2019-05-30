@@ -1,0 +1,98 @@
+#!/bin/sh
+# segregate and rebuild a package from a running Void system without an xbps
+# cache.  Most useful for pulling package versions from Void LiveCDs
+
+# TODO:	figure out if it's possible to get INSTALL/REMOVE scripts and other
+#	related files; at present, we're just packing up installed files.
+
+# Note: installs pax, because that's what I've been playing with lately
+
+usage() {
+  printf "xbps-puller:\trebuild xbps-package from running system without xbps cache\n" 1>&2
+  printf "Usage: xbps-puller <pkgname>\n" 1>&2
+  printf "\t<pkgname> must exist in the xbps database\n" 1>&2
+  exit 1
+}
+
+pkgname=$1
+[ -z $pkgname ] && usage
+
+pkginfo="`xbps-query $pkgname`" || {
+  printf "%s\tNo such package in xbps database\n" $pkgname 1>&2
+  exit 1
+}
+lastinfo=NONE
+
+while IFS='' read _info; do
+  case "$_info" in
+    \	*|\ *)
+      echo $lastinfo
+      [ "$lastinfo" = conflicts ] || continue
+      conflicts="$conflicts $_line"
+      ;;
+    architecture*)
+      lastinfo=NONE
+      architecture=`echo $_info | sed "s/^architecture:\ //"`
+      ;;
+    homepage*)
+      lastinfo=NONE
+      homepage=`echo $_info | sed "s/^homepage:\ //"`
+      ;;
+    license*)
+      lastinfo=NONE
+      license="`echo $_info | sed "s/^license:\ //"`"
+      ;;
+    short_desc*)
+      lastinfo=NONE
+      short_desc="`echo $_info | sed "s/^short_desc:\ //"`"
+      ;;
+    pkgver*)
+      lastinfo=NONE
+      pkgver=`echo $_info | sed "s/^pkgver:\ //"`
+      ;;
+    conflicts*)
+      lastinfo=conflicts
+      ;;
+    *)
+      lastinfo=NONE
+      ;;
+  esac
+done <<_EOT
+$pkginfo
+_EOT
+
+maintainer="local <root@localhost>"
+newpkg=`echo $pkgver | sed "s/$pkgname/$pkgname-manual/"`
+conflicts="$conflicts
+  $pkgname"
+
+listfile=`mktemp`
+xbps-query -f $pkgname | sed 's/\ ->.*//'> $listfile
+
+[ -f /usr/bin/pax ] || {
+  xbps-install -S
+  yes | xbps-install pax
+}
+
+mkdir /tmp/$pkgname
+pax -rwv -p e < $listfile /tmp/$pkgname
+
+export architecture homepage license maintainer short_desc \
+  newpkg conflicts pkgname
+
+(
+cd /tmp
+xbps-create --architecture $architecture \
+  --homepage $homepage \
+  --license "$license" \
+  --maintainer "$maintainer" \
+  --desc "$short_desc" \
+  --pkgver $newpkg \
+  --conflicts "$conflicts" \
+  --compression xz \
+  $pkgname
+rm -rf $pkgname
+printf "created $newpkg.$architecture.xbps in /tmp\n"
+)
+rm $listfile
+
