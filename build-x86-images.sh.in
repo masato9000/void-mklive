@@ -7,7 +7,7 @@ while getopts "a:b:hr:" opt; do
 case $opt in
 	a) ARCH="$OPTARG";;
 	b) IMAGE="$OPTARG";;
-	h) echo "${0#/*}: [-a arch] [-b base|e|xfce|mate|cinnamon|gnome|kde|lxde|lxqt] [-r repo]" >&2; exit 1;;
+	h) echo "${0#/*}: [-a arch] [-b base|rescue|e|xfce|mate|cinnamon|gnome|kde|lxde|lxqt] [-r repo]" >&2; exit 1;;
 	r) REPO="-r $OPTARG $REPO";;
 esac
 done
@@ -17,6 +17,7 @@ shift $((OPTIND - 1))
 
 readonly DATE=$(date +%Y%m%d)
 readonly BASE_IMG=void-live-${ARCH}-${DATE}.iso
+readonly RESCUE_IMG=void-rescue-${ARCH}-${DATE}.iso
 readonly E_IMG=void-live-${ARCH}-${DATE}-enlightenment.iso
 readonly XFCE_IMG=void-live-${ARCH}-${DATE}-xfce.iso
 readonly MATE_IMG=void-live-${ARCH}-${DATE}-mate.iso
@@ -30,6 +31,7 @@ readonly GRUB="grub-i386-efi grub-x86_64-efi"
 
 readonly BASE_PKGS="dialog cryptsetup lvm2 mdadm $GRUB"
 readonly X_PKGS="$BASE_PKGS xorg-minimal xorg-input-drivers xorg-video-drivers setxkbmap xauth font-misc-misc terminus-font dejavu-fonts-ttf alsa-plugins-pulseaudio"
+readonly RESCUE_PKGS="$BASE_PKGS dmidecode hdparm nvme-cli cryptsetup ht pax pv"
 readonly E_PKGS="$X_PKGS lxdm enlightenment terminology econnman udisks2 firefox-esr"
 readonly XFCE_PKGS="$X_PKGS lxdm xfce4 gnome-themes-standard gnome-keyring network-manager-applet gvfs-afc gvfs-mtp gvfs-smb udisks2 firefox-esr"
 readonly MATE_PKGS="$X_PKGS lxdm mate mate-extra gnome-keyring network-manager-applet gvfs-afc gvfs-mtp gvfs-smb udisks2 firefox-esr"
@@ -44,6 +46,11 @@ readonly LXQT_PKGS="$X_PKGS lxdm lxqt gvfs-afc gvfs-mtp gvfs-smb udisks2 qupzill
 if [ -z "$IMAGE" -o "$IMAGE" = base ]; then
 	if [ ! -e $BASE_IMG ]; then
 		./mklive.sh -a $ARCH -o $BASE_IMG -p "$BASE_PKGS" ${REPO} $@
+	fi
+fi
+if [ -z "$IMAGE" -o "$IMAGE" = rescue ]; then
+	if [ ! -e $RESCUE_IMG ]; then
+		./mklive.sh -a $ARCH -o $RESCUE_IMG -p "$RESCUE_PKGS" -I include_dirs/rescue/ ${REPO} $@
 	fi
 fi
 if [ -z "$IMAGE" -o "$IMAGE" = e ]; then
